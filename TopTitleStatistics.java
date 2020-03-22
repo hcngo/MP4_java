@@ -210,22 +210,27 @@ public class TopTitleStatistics extends Configured implements Tool {
             for (int i = words.size() - 10; i < words.size(); i++) {
                 top10.add(words.get(i));
             }
-            // Integer sum, mean, max, min, var;
+            
 
             IntSummaryStatistics stats = top10.stream()
                                     .collect(Collectors.summarizingInt((p) -> p.first));
-            double variance = 0;
+
+            // Integer sum, mean, max, min, var;
+            int sum = (int) stats.getSum();
+            int mean = (int) stats.getAverage();
+
+            int varianceSum = 0;
             for (Pair<Integer, String> aPair : top10) {
                 Integer aCount = aPair.first;
-                variance = (aCount - stats.getAverage()) * (aCount - stats.getAverage());
+                varianceSum += ((aCount - mean) * (aCount - mean));
             }
-            variance = variance / top10.size();
+            int variance = varianceSum / top10.size();
 
-            context.write(new Text("Mean"), new IntWritable((int) stats.getAverage()));
-            context.write(new Text("Sum"), new IntWritable((int) stats.getSum()));
+            context.write(new Text("Mean"), new IntWritable(mean));
+            context.write(new Text("Sum"), new IntWritable(sum));
             context.write(new Text("Min"), new IntWritable(stats.getMin()));
             context.write(new Text("Max"), new IntWritable(stats.getMax()));
-            context.write(new Text("Var"), new IntWritable((int) variance));
+            context.write(new Text("Var"), new IntWritable(variance));
         }
     }
 
