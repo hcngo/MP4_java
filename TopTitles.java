@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
+import java.util.Collections; 
 
 public class TopTitles extends Configured implements Tool {
 
@@ -108,6 +110,8 @@ public class TopTitles extends Configured implements Tool {
     public static class TitleCountMap extends Mapper<Object, Text, Text, IntWritable> {
         List<String> stopWords;
         String delimiters;
+        private Text word = new Text();
+        private final static IntWritable one = new IntWritable(1);
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
@@ -124,21 +128,36 @@ public class TopTitles extends Configured implements Tool {
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            //TODO
             //context.write(<Text>, <IntWritable>); // pass this output to reducer
+            String line = value.toString();
+            StringTokenizer tokenizer = new StringTokenizer(line, delimiters);
+            while (tokenizer.hasMoreTokens()) {
+                String nextToken = tokenizer.nextToken().trim().toLowerCase();
+                word.set(nextToken);
+                if (!stopWords.contains(nextToken)) {
+                    context.write(word, one);
+                }
+            }
+
         }
     }
 
     public static class TitleCountReduce extends Reducer<Text, IntWritable, Text, IntWritable> {
+        private IntWritable result = new IntWritable();
         @Override
         public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            //TODO
             //context.write(<Text>, <IntWritable>); // pass this output to TopTitlesMap mapper
+            int sum = 0;
+            for (IntWritable val: values) {
+                sum += val.get();
+            }
+            result.set(sum);
+            context.write(key, result);
         }
     }
 
     public static class TopTitlesMap extends Mapper<Text, Text, NullWritable, TextArrayWritable> {
-        //TODO
+        List<String> wordCounts = new ArrayList();
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
@@ -147,19 +166,26 @@ public class TopTitles extends Configured implements Tool {
 
         @Override
         public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
-            //TODO
+            Pair<String, String> wordCountPair = new Pair(key.toString(), value.toString());
+            wordCounts.add(wordCountPair.toString());
         }
 
         @Override
         protected void cleanup(Context context) throws IOException, InterruptedException {
-            //TODO
             //Cleanup operation starts after all mappers are finished
             //context.write(<NullWritable>, <TextArrayWritable>); // pass this output to reducer
+            String[] listOfWordCountPair = new String[wordCounts.size()];
+            wordCounts.toArray(listOfWordCountPair);
+
+            TextArrayWritable textArrayWritable = new TextArrayWritable(listOfWordCountPair);
+            NullWritable nullWritable = NullWritable.get();
+            context.write(nullWritable, textArrayWritable);
         }
     }
 
     public static class TopTitlesReduce extends Reducer<NullWritable, TextArrayWritable, Text, IntWritable> {
-        // TODO
+        List<Pair<Integer, String>> words = new ArrayList();
+        List<Pair<Integer, String>> top10 = new ArrayList();
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
@@ -168,8 +194,26 @@ public class TopTitles extends Configured implements Tool {
 
         @Override
         public void reduce(NullWritable key, Iterable<TextArrayWritable> values, Context context) throws IOException, InterruptedException {
-            //TODO
             //context.write(<Text>, <IntWritable>); // print as final output
+            for (TextArrayWritable textArrayWritable : values) {
+                String[] wordArray= textArrayWritable.toStrings();
+                for (int i = 0; i < wordArray.length; i++) {
+                    String[] thePair = wordArray[i].split(",");
+                    words.add(new Pair(new Integer(thePair[1]), thePair[0]));
+                }
+            }
+            Collections.sort(words);
+            for (int i = words.size() - 10; i < words.size(); i++) {
+                top10.add(words.get(i));
+            }
+
+            for (Pair<Integer, String> aWord : top10) {
+                Text aText = new Text();
+                IntWritable anInt = new IntWritable();
+                aText.set(aWord.second);
+                anInt.set(aWord.first);
+                context.write(aText, anInt);
+            }
         }
     }
 }
@@ -223,6 +267,7 @@ class Pair<A extends Comparable<? super A>,
 
     @Override
     public String toString() {
-        return "(" + first + ", " + second + ')';
+        // return "(" + first + ", " + second + ')';
+        return first + "," + second;
     }
 }
